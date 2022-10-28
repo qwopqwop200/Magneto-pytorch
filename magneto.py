@@ -155,12 +155,12 @@ def get_gamma(encoder_layer=0,decoder_layer=0):
     N,M = encoder_layer,decoder_layer
     gamma1,gamma2 = None,None
     if M > 0 and N > 0:
-        gamma1 = math.sqrt(1/3 * math.log(3*M) * math.log(2*N))
-        gamma2 = math.sqrt(math.log(3*M))
+        gamma1 = math.sqrt(1/3 * math.log(3*M) * math.log(2*N),10)
+        gamma2 = math.sqrt(math.log(3*M),10)
     elif M > 0:
-        gamma2 = math.sqrt(math.log(2*M))
+        gamma2 = math.sqrt(math.log(2*M),10)
     elif N > 0:
-        gamma1 = math.sqrt(math.log(2*N))
+        gamma1 = math.sqrt(math.log(2*N),10)
     return gamma1,gamma2
 
 def test():
