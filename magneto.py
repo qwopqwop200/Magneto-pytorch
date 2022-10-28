@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import math
 from timm.models.layers import DropPath, to_2tuple
@@ -52,8 +53,8 @@ class Attention(nn.Module):
         B, N, C = x.shape
 
         x = self.ln1(x)
-        qk = self.qk(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        v = self.v(x).reshape(B, N, self.num_heads, C // self.num_heads)
+        qk = self.qk(x).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        v = self.v(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         q, k = qk.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -94,7 +95,7 @@ class CrossAttention(nn.Module):
     def forward(self, x, y):
         B, N, C = x.shape
         x = self.ln(x)
-        q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads)
+        q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         kv = self.kv(y).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         k, v = kv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
@@ -163,10 +164,12 @@ def get_gamma(encoder_layer=0,decoder_layer=0):
     return gamma1,gamma2
 
 def test():
+    seq = torch.rand(2,5,512)
     a,b = get_gamma(5,5)
     model_a = Encdoer(512,8)
     model_b = Decoder(512,512,8)
     model_a._init_weights(a)
     model_b._init_weights(b)
-
+    model_a(seq)
+    model_b(seq,seq)
 test()
