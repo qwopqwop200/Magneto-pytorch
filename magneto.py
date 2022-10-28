@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 import math
 from timm.models.layers import DropPath, to_2tuple
@@ -10,7 +9,7 @@ class Mlp(nn.Module):
         hidden_features = hidden_features or in_features
         bias = to_2tuple(bias)
         drop_probs = to_2tuple(drop)
-        
+
         self.ln1 = nn.LayerNorm(in_features)
         self.fc1 = nn.Linear(in_features, hidden_features, bias=bias[0])
         self.act = act_layer()
@@ -32,7 +31,7 @@ class Mlp(nn.Module):
     def _init_weights(self,gamma):
         nn.init.xavier_normal_(self.fc1.weight, gain=gamma)
         nn.init.xavier_normal_(self.fc2.weight, gain=gamma)
-    
+
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
         super().__init__()
@@ -40,7 +39,7 @@ class Attention(nn.Module):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim ** -0.5
-        
+
         self.ln1 = nn.LayerNorm(dim)
         self.qk = nn.Linear(dim, dim * 2, bias=qkv_bias)
         self.v = nn.Linear(dim, dim, bias=qkv_bias)
@@ -51,14 +50,14 @@ class Attention(nn.Module):
 
     def forward(self, x, mask = None):
         B, N, C = x.shape
-        
+
         x = self.ln1(x)
         qk = self.qk(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         v = self.v(x).reshape(B, N, self.num_heads, C // self.num_heads)
         q, k = qk.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.masked_fill(mask, float('-inf')) if mask is not None else attn 
+        attn = attn.masked_fill(mask, float('-inf')) if mask is not None else attn
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -67,12 +66,12 @@ class Attention(nn.Module):
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
-    
+
     def _init_weights(self,gamma):
         nn.init.xavier_normal_(self.v.weight,gain=gamma)
         nn.init.xavier_normal_(self.qk.weight,gain=1)
         nn.init.xavier_normal_(self.proj.weight,gain=gamma)
-    
+
 class CrossAttention(nn.Module):
     def __init__(self, x_dim, y_dim, num_heads=8, qkv_bias=False, attn_drop=0., proj_drop=0.):
         super().__init__()
@@ -80,7 +79,7 @@ class CrossAttention(nn.Module):
         self.num_heads = num_heads
         head_dim = x_dim // num_heads
         self.scale = head_dim ** -0.5
-        
+
         self.ln = nn.LayerNorm(x_dim)
         self.q = nn.Linear(x_dim, x_dim, bias=qkv_bias)
         self.kv = nn.Linear(y_dim, x_dim * 2, bias=qkv_bias)
@@ -91,7 +90,7 @@ class CrossAttention(nn.Module):
         nn.init.xavier_normal_(self.q.weight,gain=1)
         nn.init.xavier_normal_(self.kv.weight,gain=1)
         nn.init.xavier_normal_(self.proj.weight,gain=1)
-        
+
     def forward(self, x, y):
         B, N, C = x.shape
         x = self.ln(x)
@@ -108,14 +107,13 @@ class CrossAttention(nn.Module):
         x = self.proj_drop(x)
         return x
 
-    def _init_weights(self,gamma):
+    def _init_weights(self):
         nn.init.xavier_normal_(self.q.weight,gain=1)
         nn.init.xavier_normal_(self.kv.weight,gain=1)
         nn.init.xavier_normal_(self.proj.weight,gain=1)
-    
+
 class Encdoer(nn.Module):
-    def __init__(self,dim,num_heads,mlp_ratio=4.,qkv_bias=False,drop=0.,attn_drop=0.,init_values=None,
-                 drop_path=0.,act_layer=nn.GELU,norm_layer=nn.LayerNorm):
+    def __init__(self,dim,num_heads,mlp_ratio=4.,qkv_bias=False,drop=0.,attn_drop=0.,drop_path=0.,act_layer=nn.GELU):
         super().__init__()
         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
         self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -126,14 +124,13 @@ class Encdoer(nn.Module):
         x = x + self.drop_path1(self.attn(x, mask))
         x = x + self.drop_path2(self.mlp(x))
         return x
-    
+
     def _init_weights(self,gamma):
         self.attn._init_weights(gamma)
         self.mlp._init_weights(gamma)
-    
+
 class Decoder(nn.Module):
-    def __init__(self,x_dim,y_dim,num_heads,mlp_ratio=4.,qkv_bias=False,drop=0.,attn_drop=0.,init_values=None,
-                 drop_path=0.,act_layer=nn.GELU,norm_layer=nn.LayerNorm):
+    def __init__(self,x_dim,y_dim,num_heads,mlp_ratio=4.,qkv_bias=False,drop=0.,attn_drop=0.,drop_path=0.,act_layer=nn.GELU):
         super().__init__()
         self.attn1 = Attention(x_dim, num_heads=num_heads, qkv_bias=qkv_bias, attn_drop=attn_drop, proj_drop=drop)
         self.drop_path1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -147,12 +144,12 @@ class Decoder(nn.Module):
         x = x + self.drop_path2(self.attn2(x, y))
         x = x + self.drop_path3(self.mlp(x))
         return x
-    
+
     def _init_weights(self,gamma):
         self.attn1._init_weights(gamma)
         self.attn2._init_weights(gamma)
         self.mlp._init_weights(gamma)
-    
+
 def get_gamma(encoder_layer=0,decoder_layer=0):
     N,M = encoder_layer,decoder_layer
     gamma1,gamma2 = None,None
@@ -171,5 +168,5 @@ def test():
     model_b = Decoder(512,512,8)
     model_a._init_weights(a)
     model_b._init_weights(b)
-    
+
 test()
