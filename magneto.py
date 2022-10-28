@@ -147,7 +147,7 @@ class Decoder(nn.Module):
 
     def _init_weights(self,gamma):
         self.attn1._init_weights(gamma)
-        self.attn2._init_weights(gamma)
+        self.attn2._init_weights()
         self.mlp._init_weights(gamma)
 
 def get_gamma(encoder_layer=0,decoder_layer=0):
